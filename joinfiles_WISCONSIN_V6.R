@@ -220,6 +220,9 @@ summary <- summary %>%
   rename(breeding_category = category_code) %>%
   mutate(project_code = "EBIRD_ATL_WI")
 
+# deleting some stray bottom NA row this file was picking up?
+user_hidden_records <- head(user_hidden_records, - 1)  
+
 user_hidden_records <- user_hidden_records %>%
   left_join(., species) %>%
   left_join(., protocols) %>%
