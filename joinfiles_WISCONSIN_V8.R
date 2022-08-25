@@ -1,3 +1,5 @@
+#THERE REMAINS SOME PARSING ISSUE - POTENTIALLY WITH DATE AND SENSITIVE SPECIES
+
 #This version has an expanded bottom section, I was having trouble when I loaded the full EBD up front, so I loaded in a tiny EBD from a single species, 
 #ran it to the first set of hashmarks and exported, then when I wanted to merge those records with the full EBD I went down to the bottom section and loaded those in
 #conventionally (not using auk)
