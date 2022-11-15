@@ -285,7 +285,9 @@ uncoded <- anti_join(bba2, coded_spp) %>%
 uncoded_summary <- uncoded %>%
   pivot_wider(names_from = observation_season,
               values_from = n_seasonal_occurrences) %>%
-  distinct(common_name,
+  group_by(common_name) %>%
+          mutate(across(breeding:earlyseason), sum, na.rm = TRUE) %>%
+    distinct(common_name,
            n_occurrences,
            earlyseason,
            prebreeding,
@@ -305,23 +307,22 @@ for(i in block_eval) {
     filter(block_name %in% i) %>%
     select(-block_county) %>%
     arrange(taxonomic_order, observation_date)
-    
-# this version restricts to species coded in innermost safe dates
-    screen1_summary <- uncoded_summary %>%
-    filter(block_name %in% i &
-             (!is.na(breeding))) %>%
-    select(-block_name, -block_county) %>%
-    arrange(-breeding, -prebreeding, -postbreeding, -n_occurrences) %>%
-    rename(BREEDING = breeding)
-    
   
-# this was the full version including preseason and postseason records
-#   screen1_summary <- uncoded_summary %>%
-#   filter(block_name %in% i) %>%
-#   select(-block_name, -block_county) %>%
-#   arrange(-breeding, -prebreeding, -postbreeding, -n_occurrences) %>%
-#   rename(BREEDING = breeding)
-    
+  # this is the full version including preseason and postseason records
+     screen1_summary <- uncoded_summary %>%
+     filter(block_name %in% i) %>%
+     select(-block_name, -block_county) %>%
+     arrange(-breeding, -prebreeding, -postbreeding, -n_occurrences) %>%
+     rename(BREEDING = breeding)
+ 
+  # this version restricts to species coded in innermost safe dates
+  # screen1_summary <- uncoded_summary %>%
+  #  filter(block_name %in% i &
+  #           (!is.na(breeding))) %>%
+  #  select(-block_name, -block_county) %>%
+  #  arrange(-breeding, -prebreeding, -postbreeding, -n_occurrences) %>%
+  #  rename(BREEDING = breeding)
+  
   
   if(!dir.exists(here("wibba2 screen", county_name))) {
     dir.create(here("wibba2 screen", county_name))
@@ -359,7 +360,7 @@ coded <- bba2 %>%
                                     origin = "2015-01-01"), "%b %d"),
          days_present = (max(jdate) + 1) - min(jdate),
          in_breeding_season = ifelse(any(observation_season == "breeding"), 
-                                         TRUE, FALSE),
+                                     TRUE, FALSE),
          below_three_codes = ifelse(n_codes < 3, TRUE, FALSE)) %>%
   ungroup() %>%
   mutate(link = paste0("https://ebird.org/atlaswi/checklist/", 
