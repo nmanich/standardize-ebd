@@ -10,7 +10,34 @@ library(lubridate)
 library(sf)
 
 # atlas data
-bba2 <- read.delim(here("ebird_data_sample_wbbaii.txt"), quote = "") 
+bba2 <- read.delim(here("ebd_US-WI-105_201501_201912_relSep-2022.txt"), quote = "") 
+
+#bba2 <- read.csv("Janesville2.csv")
+
+# remove obsposs species (people do not need to be assessing Possible status for them)
+bba2 <- subset(bba2, COMMON.NAME != "Laughing Gull")
+bba2 <- subset(bba2, COMMON.NAME != "Ring-billed Gull")
+bba2 <- subset(bba2, COMMON.NAME != "Herring Gull")
+bba2 <- subset(bba2, COMMON.NAME != "Great Black-backed Gull")
+bba2 <- subset(bba2, COMMON.NAME != "Forster's Tern")
+bba2 <- subset(bba2, COMMON.NAME != "Common Tern")
+bba2 <- subset(bba2, COMMON.NAME != "Caspian Tern")
+bba2 <- subset(bba2, COMMON.NAME != "Double-crested Cormorant")
+bba2 <- subset(bba2, COMMON.NAME != "American White Pelican")
+bba2 <- subset(bba2, COMMON.NAME != "Turkey Vulture")
+bba2 <- subset(bba2, COMMON.NAME != "Osprey")
+bba2 <- subset(bba2, COMMON.NAME != "Bald Eagle")
+bba2 <- subset(bba2, COMMON.NAME != "Great Blue Heron")
+bba2 <- subset(bba2, COMMON.NAME != "Great Egret")
+bba2 <- subset(bba2, COMMON.NAME != "Snowy Egret")
+bba2 <- subset(bba2, COMMON.NAME != "Cattle Egret")
+bba2 <- subset(bba2, COMMON.NAME != "Black-crowned Night-Heron")
+bba2 <- subset(bba2, COMMON.NAME != "Yellow-crowned Night-Heron")
+bba2 <- subset(bba2, COMMON.NAME != "Whooping Crane")
+
+# remove spuhs and slashes
+bba2 <- subset(bba2, CATEGORY != "spuh")
+bba2 <- subset(bba2, CATEGORY != "slash")
 
 # phenology data
 dates <- read.csv(here("acceptable_dates2015.csv")) %>%
@@ -37,8 +64,8 @@ bba2 <- bba2 %>%
 
 # find any missing blocks
 find_block <- function(df, shapefile, 
-                        map_col = "block_id", crs = 4326,
-                        lon = "longitude", lat = "latitude") {
+                       map_col = "block_id", crs = 4326,
+                       lon = "longitude", lat = "latitude") {
   shapefile <- shapefile %>%
     sf::st_transform(crs = crs)
   
@@ -191,7 +218,6 @@ if (any(c(any(map(map(dates$season_len, discard, is.na), transpose) %>%
 bba2 <- left_join(bba2, select(dates, Species, season_len), 
                   by = c("common_name" = "Species")) 
 
-
 # assign the season the observation was recorded in
 bba2$observation_season <- sapply(1:nrow(bba2), function(x) {
   if (bba2$jdate[x] %in% bba2$season_len[[x]]$earlyseason[[1]]) {
@@ -217,7 +243,7 @@ if (any(unique(bba2[which(is.na(bba2$observation_season)), "common_name"])
   warning("Seasons have not been evaluated as expected")
 }
 
-## Screen 1 -- Identify uncoded, eligible species -----------------------------
+## Screen 1 -- Identify uncoded, eligible species AKA CODE UP CHECK-------------
 
 # identify the coded species
 coded_spp <- bba2 %>%
@@ -277,30 +303,42 @@ for(i in block_eval) {
   
   screen1_detailed <- uncoded %>%
     filter(block_name %in% i) %>%
-    select(-block_county) 
-  
-  screen1_summary <- uncoded_summary %>%
-    filter(block_name %in% i) %>%
-    select(-block_name, -block_county)%>%
-    arrange(-breeding, -n_occurrences) %>%
+    select(-block_county) %>%
+    arrange(taxonomic_order, observation_date)
+    
+# this version restricts to species coded in innermost safe dates
+    screen1_summary <- uncoded_summary %>%
+    filter(block_name %in% i &
+             (!is.na(breeding))) %>%
+    select(-block_name, -block_county) %>%
+    arrange(-breeding, -prebreeding, -postbreeding, -n_occurrences) %>%
     rename(BREEDING = breeding)
+    
+  
+# this was the full version including preseason and postseason records
+#   screen1_summary <- uncoded_summary %>%
+#   filter(block_name %in% i) %>%
+#   select(-block_name, -block_county) %>%
+#   arrange(-breeding, -prebreeding, -postbreeding, -n_occurrences) %>%
+#   rename(BREEDING = breeding)
+    
   
   if(!dir.exists(here("wibba2 screen", county_name))) {
     dir.create(here("wibba2 screen", county_name))
   }
   
   write.csv(screen1_detailed, here("wibba2 screen", county_name, 
-                                   paste0("wibba2_screen1_details_", 
-                                          i, ".csv")),
+                                   paste0(i, "_CODE_UP_CHECK_details", 
+                                          ".csv")),
             row.names = FALSE)
   
   write.csv(screen1_summary, here("wibba2 screen", county_name, 
-                                  paste0("wibba2_screen1_summary_", 
-                                         i, ".csv")),
+                                  paste0(i, "_CODE_UP_CHECK_summary", 
+                                         ".csv")),
             row.names = FALSE)
 }
 
-# Screen 2 -- Identify potentially ineligible coded species -------------------
+# Screen 2 -- Identify potentially ineligible coded species AKA CODE DOWN CHECK-
 
 coded <- bba2 %>%
   filter(project_code == "EBIRD_ATL_WI" &
@@ -311,17 +349,15 @@ coded <- bba2 %>%
   filter(!duplicated(group_identifier, incomparables = NA)) %>%
   group_by(block_name, common_name) %>%
   mutate(n_codes = n(),
-         year = year(observation_date),
-         jdate = ifelse(year == 2016, jdate + 365, jdate),
-         first_code = format(as_date(min(jdate - 1), 
+         first_code = format(as_date(min(jdate), 
                                      origin = "2015-01-01"), "%b %d"),
-         last_code = format(as_date(max(jdate - 1), 
+         last_code = format(as_date(max(jdate), 
                                     origin = "2015-01-01"), "%b %d"),
-         mean_code = format(as_date(mean(jdate - 1), 
+         mean_code = format(as_date(mean(jdate), 
                                     origin = "2015-01-01"), "%b %d"),
          days_present = (max(jdate) + 1) - min(jdate),
          in_breeding_season = ifelse(any(observation_season == "breeding"), 
-                                         TRUE, FALSE),
+                                     TRUE, FALSE),
          below_three_codes = ifelse(n_codes < 3, TRUE, FALSE)) %>%
   ungroup() %>%
   mutate(link = paste0("https://ebird.org/atlaswi/checklist/", 
@@ -334,6 +370,7 @@ coded <- bba2 %>%
          mean_code,
          days_present,
          in_breeding_season,
+         link,
          below_three_codes,
          observation_season,
          observation_date,
@@ -344,10 +381,8 @@ coded <- bba2 %>%
          observation_count,
          duration_minutes,
          effort_distance_km,
-         project_code,
          species_comments,
-         sampling_event_identifier,
-         link)
+         sampling_event_identifier)
 
 coded_summary <- coded %>%
   distinct(block_name, common_name, .keep_all = TRUE)
@@ -362,24 +397,27 @@ for(i in block_eval) {
   screen2_detailed <- coded %>%
     filter(block_name %in% i &
              (in_breeding_season == FALSE |
-             below_three_codes == TRUE)) %>%
-    select(-block_county)
+                below_three_codes == TRUE)) %>%
+    select(-block_county) %>%
+    arrange(n_codes, taxonomic_order)
   
   screen2_summary <- coded_summary %>%
     filter(block_name %in% i) %>%
-    select(-block_name, -block_county)
+    select(-block_name, -block_county) %>%
+    arrange(n_codes, taxonomic_order) 
   
   if(!dir.exists(here("wibba2 screen", county_name))) {
     dir.create(here("wibba2 screen", county_name))
   }
   
   write.csv(screen2_detailed, here("wibba2 screen", county_name, 
-                                   paste0("wibba2_screen2_details_", 
-                                          i, ".csv")),
+                                   paste0(i, "_CODE_DOWN_CHECK_details", 
+                                          ".csv")),
             row.names = FALSE)
   
   write.csv(screen2_summary, here("wibba2 screen", county_name, 
-                                  paste0("wibba2_screen2_summary_", 
-                                         i, ".csv")),
+                                  paste0(i, "_CODE_DOWN_CHECK_summary", 
+                                         ".csv")),
             row.names = FALSE)
 }
+
