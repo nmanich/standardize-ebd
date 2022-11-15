@@ -349,15 +349,17 @@ coded <- bba2 %>%
   filter(!duplicated(group_identifier, incomparables = NA)) %>%
   group_by(block_name, common_name) %>%
   mutate(n_codes = n(),
-         first_code = format(as_date(min(jdate), 
+         year = year(observation_date),
+         jdate = ifelse(year == 2016, jdate + 365, jdate),
+         first_code = format(as_date(min(jdate - 1), 
                                      origin = "2015-01-01"), "%b %d"),
-         last_code = format(as_date(max(jdate), 
+         last_code = format(as_date(max(jdate - 1), 
                                     origin = "2015-01-01"), "%b %d"),
-         mean_code = format(as_date(mean(jdate), 
+         mean_code = format(as_date(mean(jdate - 1), 
                                     origin = "2015-01-01"), "%b %d"),
          days_present = (max(jdate) + 1) - min(jdate),
          in_breeding_season = ifelse(any(observation_season == "breeding"), 
-                                     TRUE, FALSE),
+                                         TRUE, FALSE),
          below_three_codes = ifelse(n_codes < 3, TRUE, FALSE)) %>%
   ungroup() %>%
   mutate(link = paste0("https://ebird.org/atlaswi/checklist/", 
